@@ -25,6 +25,17 @@ interface BalanceEntry {
   amount: number;
 }
 
+interface DetailedTransaction {
+  expenseId: number;
+  expenseDescription: string;
+  expenseDate: string;
+  from: number;
+  to: number;
+  amount: number;
+}
+
+type SettlementMode = "optimized" | "detailed";
+
 export default function WarikanApp() {
   const [members, setMembers] = useState<Member[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -38,6 +49,7 @@ export default function WarikanApp() {
   const [paidById, setPaidById] = useState(0);
   const [paidForIds, setPaidForIds] = useState<number[]>([]);
   const [expenseError, setExpenseError] = useState("");
+  const [settlementMode, setSettlementMode] = useState<SettlementMode>("optimized");
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
@@ -131,6 +143,36 @@ export default function WarikanApp() {
     }
   };
 
+  const calculateDetailedSettlement = (): DetailedTransaction[] => {
+    const detailedTransactions: DetailedTransaction[] = [];
+
+    expenses.forEach((expense) => {
+      const payerId = expense.paidById;
+      const amount = expense.amount;
+      const paidForIds = expense.paidForIds;
+      const share = amount / paidForIds.length;
+
+      // 支払った人以外の、割り勘対象者が支払うべき金額を計算
+      paidForIds.forEach((memberId) => {
+        if (memberId !== payerId) {
+          detailedTransactions.push({
+            expenseId: expense.id,
+            expenseDescription: expense.description,
+            expenseDate: expense.date,
+            from: memberId,
+            to: payerId,
+            amount: share,
+          });
+        }
+      });
+    });
+
+    // 日付順にソート（新しい順）
+    return detailedTransactions.sort(
+      (a, b) => new Date(b.expenseDate).getTime() - new Date(a.expenseDate).getTime()
+    );
+  };
+
   const calculateSettlement = (): Transaction[] => {
     if (expenses.length === 0 || members.length < 2) {
       return [];
@@ -194,6 +236,7 @@ export default function WarikanApp() {
   };
 
   const transactions = calculateSettlement();
+  const detailedTransactions = calculateDetailedSettlement();
   const sortedExpenses = [...expenses].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
@@ -412,53 +455,145 @@ export default function WarikanApp() {
             <h2 class="text-2xl font-semibold mb-4 text-indigo-900">
               3. 精算結果
             </h2>
+            
+            {/* 精算モード選択 */}
+            {expenses.length > 0 && members.length >= 2 && (
+              <div class="mb-4 flex gap-2 bg-white p-2 rounded-lg">
+                <button
+                  onClick={() => setSettlementMode("optimized")}
+                  class={`flex-1 px-4 py-2 rounded-md font-medium transition-colors ${
+                    settlementMode === "optimized"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  最適化モード
+                </button>
+                <button
+                  onClick={() => setSettlementMode("detailed")}
+                  class={`flex-1 px-4 py-2 rounded-md font-medium transition-colors ${
+                    settlementMode === "detailed"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  ガチガチ計算モード
+                </button>
+              </div>
+            )}
+
             <div class="space-y-3">
               {expenses.length === 0 || members.length < 2 ? (
                 <p class="text-indigo-700">
                   支払いが追加されると、ここに精算結果が表示されます。
                 </p>
-              ) : transactions.length === 0 ? (
-                <p class="font-semibold text-green-600">
-                  🎉 全員の精算は完了しています！
-                </p>
-              ) : (
-                transactions.map((tx, idx) => {
-                  const fromMember = members.find((m) => m.id === tx.from);
-                  const toMember = members.find((m) => m.id === tx.to);
+              ) : settlementMode === "optimized" ? (
+                // 最適化モード
+                transactions.length === 0 ? (
+                  <p class="font-semibold text-green-600">
+                    🎉 全員の精算は完了しています！
+                  </p>
+                ) : (
+                  <>
+                    <p class="text-sm text-indigo-600 mb-3">
+                      💡 取引回数を最小化した精算方法
+                    </p>
+                    {transactions.map((tx, idx) => {
+                      const fromMember = members.find((m) => m.id === tx.from);
+                      const toMember = members.find((m) => m.id === tx.to);
 
-                  if (!fromMember || !toMember) return null;
+                      if (!fromMember || !toMember) return null;
 
-                  return (
-                    <div
-                      key={idx}
-                      class="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm"
-                    >
-                      <div class="flex items-center gap-3">
-                        <span class="font-semibold text-gray-700">
-                          {fromMember.name}
-                        </span>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          class="h-5 w-5 text-gray-400"
-                          viewBox="0 0 20 20"
-                          fill="currentColor"
+                      return (
+                        <div
+                          key={idx}
+                          class="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm"
                         >
-                          <path
-                            fill-rule="evenodd"
-                            d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
-                            clip-rule="evenodd"
-                          />
-                        </svg>
-                        <span class="font-semibold text-gray-700">
-                          {toMember.name}
-                        </span>
-                      </div>
-                      <div class="font-bold text-lg text-indigo-600">
-                        {Math.round(tx.amount).toLocaleString()}円
-                      </div>
+                          <div class="flex items-center gap-3">
+                            <span class="font-semibold text-gray-700">
+                              {fromMember.name}
+                            </span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              class="h-5 w-5 text-gray-400"
+                              viewBox="0 0 20 20"
+                              fill="currentColor"
+                            >
+                              <path
+                                fill-rule="evenodd"
+                                d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
+                                clip-rule="evenodd"
+                              />
+                            </svg>
+                            <span class="font-semibold text-gray-700">
+                              {toMember.name}
+                            </span>
+                          </div>
+                          <div class="font-bold text-lg text-indigo-600">
+                            {Math.round(tx.amount).toLocaleString()}円
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )
+              ) : (
+                // ガチガチ計算モード
+                <>
+                  <p class="text-sm text-indigo-600 mb-3">
+                    📋 各支払いごとの都度払い精算
+                  </p>
+                  {detailedTransactions.length === 0 ? (
+                    <p class="font-semibold text-green-600">
+                      🎉 全員の精算は完了しています！
+                    </p>
+                  ) : (
+                    <div class="space-y-4">
+                      {detailedTransactions.map((dtx, idx) => {
+                        const fromMember = members.find((m) => m.id === dtx.from);
+                        const toMember = members.find((m) => m.id === dtx.to);
+
+                        if (!fromMember || !toMember) return null;
+
+                        return (
+                          <div
+                            key={idx}
+                            class="bg-white p-3 rounded-lg shadow-sm"
+                          >
+                            <div class="text-xs text-gray-500 mb-1">
+                              {dtx.expenseDate} - {dtx.expenseDescription}
+                            </div>
+                            <div class="flex items-center justify-between">
+                              <div class="flex items-center gap-3">
+                                <span class="font-semibold text-gray-700">
+                                  {fromMember.name}
+                                </span>
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  class="h-5 w-5 text-gray-400"
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                >
+                                  <path
+                                    fill-rule="evenodd"
+                                    d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
+                                    clip-rule="evenodd"
+                                  />
+                                </svg>
+                                <span class="font-semibold text-gray-700">
+                                  {toMember.name}
+                                </span>
+                              </div>
+                              <div class="font-bold text-lg text-indigo-600">
+                                {Math.round(dtx.amount).toLocaleString()}円
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })
+                  )}
+                </>
               )}
             </div>
           </div>
