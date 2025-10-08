@@ -1,5 +1,14 @@
 import { App, staticFiles } from "fresh";
 import { define, type State } from "./utils.ts";
+import { initDatabase } from "./db.ts";
+
+// Initialize database on startup
+try {
+  await initDatabase();
+} catch (error) {
+  console.error("Failed to initialize database. Make sure PostgreSQL is running.");
+  console.error("You can skip database features by not setting DB environment variables.");
+}
 
 export const app = new App<State>();
 

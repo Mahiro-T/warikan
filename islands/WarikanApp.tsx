@@ -50,7 +50,7 @@ interface MemberBalance {
   isPaying: boolean; // 払う側（マイナス）か受け取る側（プラス）か
 }
 
-export default function WarikanApp() {
+export default function WarikanApp({ sessionId }: { sessionId?: string }) {
   const [members, setMembers] = useState<Member[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [nextMemberId, setNextMemberId] = useState(0);
@@ -65,6 +65,91 @@ export default function WarikanApp() {
   const [expenseError, setExpenseError] = useState("");
   const [settlementMode, setSettlementMode] = useState<SettlementMode>("optimized");
   const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set());
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(sessionId || null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState("");
+
+  // Load session data if sessionId is provided
+  useEffect(() => {
+    if (sessionId) {
+      loadSessionData();
+    }
+  }, [sessionId]);
+
+  const loadSessionData = async () => {
+    if (!sessionId) return;
+
+    try {
+      const response = await fetch(`/api/session/${sessionId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setMembers(data.members);
+        setExpenses(data.expenses);
+        setNextMemberId(data.nextMemberId);
+        setNextExpenseId(data.nextExpenseId);
+        setCurrentSessionId(sessionId);
+      } else {
+        console.error("Failed to load session");
+      }
+    } catch (error) {
+      console.error("Error loading session:", error);
+    }
+  };
+
+  const saveToDatabase = async () => {
+    setIsSaving(true);
+    setSaveMessage("");
+
+    try {
+      let sid = currentSessionId;
+
+      // Create new session if none exists
+      if (!sid) {
+        const response = await fetch("/api/session", { method: "POST" });
+        const data = await response.json();
+        sid = data.sessionId;
+        setCurrentSessionId(sid);
+        
+        // Update URL without reload
+        window.history.pushState({}, "", `/session/${sid}`);
+      }
+
+      // Save data to session
+      const sessionData = {
+        members,
+        expenses,
+        nextMemberId,
+        nextExpenseId,
+      };
+
+      const response = await fetch(`/api/session/${sid}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sessionData),
+      });
+
+      if (response.ok) {
+        setSaveMessage("✅ 保存しました");
+        setTimeout(() => setSaveMessage(""), 3000);
+      } else {
+        setSaveMessage("❌ 保存に失敗しました");
+      }
+    } catch (error) {
+      console.error("Error saving:", error);
+      setSaveMessage("❌ 保存に失敗しました");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const copySessionLink = () => {
+    if (currentSessionId) {
+      const url = `${window.location.origin}/session/${currentSessionId}`;
+      navigator.clipboard.writeText(url);
+      setSaveMessage("📋 リンクをコピーしました");
+      setTimeout(() => setSaveMessage(""), 3000);
+    }
+  };
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
@@ -337,6 +422,51 @@ export default function WarikanApp() {
         <p class="text-gray-600 mt-2">
           メンバーと支払いを追加して、簡単に精算しましょう。
         </p>
+        
+        {/* Save and Share buttons */}
+        <div class="mt-4 flex justify-center gap-3">
+          <button
+            onClick={saveToDatabase}
+            disabled={isSaving}
+            class="btn btn-primary flex items-center gap-2"
+          >
+            {isSaving ? (
+              <>
+                <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                保存中...
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M7.707 10.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V6h5a2 2 0 012 2v7a2 2 0 01-2 2H4a2 2 0 01-2-2V8a2 2 0 012-2h5v5.586l-1.293-1.293zM9 4a1 1 0 012 0v2H9V4z" />
+                </svg>
+                保存
+              </>
+            )}
+          </button>
+          
+          {currentSessionId && (
+            <button
+              onClick={copySessionLink}
+              class="btn btn-secondary flex items-center gap-2"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+              </svg>
+              リンクをコピー
+            </button>
+          )}
+        </div>
+        
+        {saveMessage && (
+          <div class="mt-3 text-sm font-medium text-indigo-600">
+            {saveMessage}
+          </div>
+        )}
       </header>
 
       <main id="app">
