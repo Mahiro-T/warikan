@@ -1,33 +1,57 @@
+interface Member {
+  id: number;
+  name: string;
+}
+
+interface Expense {
+  id: number;
+  description: string;
+  amount: number;
+  date: string;
+  paidById: number;
+  paidForIds: number[];
+}
+
+interface Transaction {
+  from: number;
+  to: number;
+  amount: number;
+}
+
+interface BalanceEntry {
+  id: number;
+  amount: number;
+}
+
 // --- データストア ---
-let members = [];
-let expenses = [];
-let nextMemberId = 0;
-let nextExpenseId = 0;
+let members: Member[] = [];
+let expenses: Expense[] = [];
+let nextMemberId: number = 0;
+let nextExpenseId: number = 0;
 
 // --- DOM要素 ---
-const memberNameInput = document.getElementById('memberName');
-const membersListDiv = document.getElementById('membersList');
-const memberErrorDiv = document.getElementById('memberError');
-const paidBySelect = document.getElementById('paidBy');
-const paidForCheckboxesDiv = document.getElementById('paidForCheckboxes');
-const expensesLogDiv = document.getElementById('expensesLog');
-const settlementResultDiv = document.getElementById('settlementResult');
-const addExpenseForm = document.getElementById('addExpenseForm');
-const expenseWarning = document.getElementById('expenseWarning');
-const expenseErrorDiv = document.getElementById('expenseError');
-const expenseDescriptionInput = document.getElementById('expenseDescription');
-const expenseAmountInput = document.getElementById('expenseAmount');
-const expenseDateInput = document.getElementById('expenseDate');
+const memberNameInput = document.getElementById('memberName') as HTMLInputElement;
+const membersListDiv = document.getElementById('membersList') as HTMLDivElement;
+const memberErrorDiv = document.getElementById('memberError') as HTMLDivElement;
+const paidBySelect = document.getElementById('paidBy') as HTMLSelectElement;
+const paidForCheckboxesDiv = document.getElementById('paidForCheckboxes') as HTMLDivElement;
+const expensesLogDiv = document.getElementById('expensesLog') as HTMLDivElement;
+const settlementResultDiv = document.getElementById('settlementResult') as HTMLDivElement;
+const addExpenseForm = document.getElementById('addExpenseForm') as HTMLDivElement;
+const expenseWarning = document.getElementById('expenseWarning') as HTMLDivElement;
+const expenseErrorDiv = document.getElementById('expenseError') as HTMLDivElement;
+const expenseDescriptionInput = document.getElementById('expenseDescription') as HTMLInputElement;
+const expenseAmountInput = document.getElementById('expenseAmount') as HTMLInputElement;
+const expenseDateInput = document.getElementById('expenseDate') as HTMLInputElement;
 
 // 初期化処理
 document.addEventListener('DOMContentLoaded', () => {
     expenseDateInput.valueAsDate = new Date();
 });
 
-
 // --- メンバー関連の関数 ---
 
-function addMember() {
+function addMember(): void {
     memberErrorDiv.textContent = ''; // エラーメッセージをリセット
     const name = memberNameInput.value.trim();
     if (name === "") {
@@ -44,8 +68,7 @@ function addMember() {
     render();
 }
 
-function removeMember(id) {
-    // 確認ダイアログを削除し、直接実行するように変更
+function removeMember(id: number): void {
     members = members.filter(m => m.id !== id);
     // メンバーが関与する支払いを削除
     expenses = expenses.filter(expense => {
@@ -58,14 +81,14 @@ function removeMember(id) {
 
 // --- 支払い関連の関数 ---
 
-function addExpense() {
+function addExpense(): void {
     expenseErrorDiv.textContent = ''; // エラーメッセージをリセット
     const description = expenseDescriptionInput.value.trim();
     const amount = parseFloat(expenseAmountInput.value);
     const date = expenseDateInput.value;
     const paidById = parseInt(paidBySelect.value);
 
-    const paidForCheckboxes = document.querySelectorAll('#paidForCheckboxes input[type="checkbox"]:checked');
+    const paidForCheckboxes = document.querySelectorAll('#paidForCheckboxes input[type="checkbox"]:checked') as NodeListOf<HTMLInputElement>;
     const paidForIds = Array.from(paidForCheckboxes).map(cb => parseInt(cb.value));
 
     // バリデーション
@@ -94,28 +117,26 @@ function addExpense() {
     expenseAmountInput.value = "";
     expenseDateInput.valueAsDate = new Date();
     paidBySelect.selectedIndex = 0;
-    document.querySelectorAll('#paidForCheckboxes input[type="checkbox"]').forEach(cb => cb.checked = true);
+    document.querySelectorAll('#paidForCheckboxes input[type="checkbox"]').forEach((cb: HTMLInputElement) => cb.checked = true);
 
     render();
 }
 
-function removeExpense(id) {
-    // 確認ダイアログを削除し、直接実行するように変更
+function removeExpense(id: number): void {
     expenses = expenses.filter(e => e.id !== id);
     render();
 }
 
-
 // --- 再描画（レンダー）関連の関数 ---
 
-function render() {
+function render(): void {
     renderMembers();
     renderExpenseForm();
     renderExpensesLog();
     calculateAndRenderSettlement();
 }
 
-function renderMembers() {
+function renderMembers(): void {
     membersListDiv.innerHTML = "";
     if (members.length === 0) {
         membersListDiv.innerHTML = `<p class="text-gray-500">まだメンバーがいません。</p>`;
@@ -132,7 +153,7 @@ function renderMembers() {
     }
 }
 
-function renderExpenseForm() {
+function renderExpenseForm(): void {
     if (members.length < 2) {
         addExpenseForm.classList.add('hidden');
         expenseWarning.classList.remove('hidden');
@@ -153,7 +174,7 @@ function renderExpenseForm() {
     }
 }
 
-function renderExpensesLog() {
+function renderExpensesLog(): void {
     expensesLogDiv.innerHTML = "";
     if (expenses.length === 0) {
         expensesLogDiv.innerHTML = '<p class="text-gray-500">まだ支払いはありません。</p>';
@@ -161,7 +182,7 @@ function renderExpensesLog() {
     }
 
     // 日付の降順でソート
-    const sortedExpenses = [...expenses].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const sortedExpenses = [...expenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     sortedExpenses.forEach(expense => {
         const payer = members.find(m => m.id === expense.paidById);
@@ -169,7 +190,7 @@ function renderExpensesLog() {
 
         const paidForNames = expense.paidForIds
             .map(id => members.find(m => m.id === id)?.name)
-            .filter(name => name) // 削除されたメンバーを除外
+            .filter((name): name is string => name !== undefined) // 削除されたメンバーを除外
             .join(', ');
 
         const expenseCard = document.createElement('div');
@@ -188,16 +209,15 @@ function renderExpensesLog() {
     });
 }
 
-
 // --- 精算ロジック ---
 
-function calculateAndRenderSettlement() {
+function calculateAndRenderSettlement(): void {
     if (expenses.length === 0 || members.length < 2) {
         settlementResultDiv.innerHTML = '<p class="text-indigo-700">支払いが追加されると、ここに精算結果が表示されます。</p>';
         return;
     }
 
-    const balances = new Map();
+    const balances = new Map<number, number>();
     members.forEach(member => balances.set(member.id, 0));
 
     // 各人の貸し借りを計算
@@ -208,19 +228,21 @@ function calculateAndRenderSettlement() {
         const share = amount / paidForIds.length;
 
         // 支払った人はプラス
-        balances.set(payerId, balances.get(payerId) + amount);
+        const currentBalance = balances.get(payerId) || 0;
+        balances.set(payerId, currentBalance + amount);
 
         // 対象者はマイナス
         paidForIds.forEach(memberId => {
             if (balances.has(memberId)) {
-                balances.set(memberId, balances.get(memberId) - share);
+                const currentMemberBalance = balances.get(memberId) || 0;
+                balances.set(memberId, currentMemberBalance - share);
             }
         });
     });
 
     // 貸している人（プラス）と借りている人（マイナス）に分ける
-    const creditors = []; // 貸してる人
-    const debtors = []; // 借りてる人
+    const creditors: BalanceEntry[] = []; // 貸してる人
+    const debtors: BalanceEntry[] = []; // 借りてる人
 
     balances.forEach((amount, memberId) => {
         if (amount > 0.01) { // 浮動小数点誤差を考慮
@@ -230,7 +252,7 @@ function calculateAndRenderSettlement() {
         }
     });
 
-    const transactions = [];
+    const transactions: Transaction[] = [];
 
     // 精算取引を生成
     let i = 0, j = 0;
@@ -258,7 +280,7 @@ function calculateAndRenderSettlement() {
     renderSettlement(transactions);
 }
 
-function renderSettlement(transactions) {
+function renderSettlement(transactions: Transaction[]): void {
     settlementResultDiv.innerHTML = "";
     if (transactions.length === 0) {
         settlementResultDiv.innerHTML = '<p class="font-semibold text-green-600">🎉 全員の精算は完了しています！</p>';
@@ -286,6 +308,12 @@ function renderSettlement(transactions) {
         settlementResultDiv.appendChild(transactionDiv);
     });
 }
+
+// グローバル関数として公開（HTMLから呼び出し用）
+(window as any).addMember = addMember;
+(window as any).removeMember = removeMember;
+(window as any).addExpense = addExpense;
+(window as any).removeExpense = removeExpense;
 
 // --- 初期描画 ---
 render();

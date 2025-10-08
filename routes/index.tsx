@@ -93,7 +93,7 @@ export default define.page(function Home() {
           </footer>
         </div>
 
-        <script src="/script.js"></script>
+        <script src="/script.ts"></script>
       </body>
     </>
   );
