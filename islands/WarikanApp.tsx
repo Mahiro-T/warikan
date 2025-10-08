@@ -34,13 +34,20 @@ interface DetailedTransaction {
   amount: number;
 }
 
-type SettlementMode = "optimized" | "detailed";
+type SettlementMode = "optimized" | "detailed" | "diagram";
 
 interface AggregatedTransaction {
   from: number;
   to: number;
   totalAmount: number;
   details: DetailedTransaction[];
+}
+
+interface MemberBalance {
+  id: number;
+  name: string;
+  balance: number;
+  isPaying: boolean; // 払う側（マイナス）か受け取る側（プラス）か
 }
 
 export default function WarikanApp() {
@@ -279,9 +286,46 @@ export default function WarikanApp() {
     return transactions;
   };
 
+  const calculateMemberBalances = (): MemberBalance[] => {
+    if (expenses.length === 0 || members.length < 2) {
+      return [];
+    }
+
+    const balances = new Map<number, number>();
+    members.forEach((member) => balances.set(member.id, 0));
+
+    expenses.forEach((expense) => {
+      const payerId = expense.paidById;
+      const amount = expense.amount;
+      const paidForIds = expense.paidForIds;
+      const share = amount / paidForIds.length;
+
+      const currentBalance = balances.get(payerId) || 0;
+      balances.set(payerId, currentBalance + amount);
+
+      paidForIds.forEach((memberId) => {
+        if (balances.has(memberId)) {
+          const currentMemberBalance = balances.get(memberId) || 0;
+          balances.set(memberId, currentMemberBalance - share);
+        }
+      });
+    });
+
+    return members.map((member) => {
+      const balance = balances.get(member.id) || 0;
+      return {
+        id: member.id,
+        name: member.name,
+        balance: balance,
+        isPaying: balance < -0.01,
+      };
+    }).filter((mb) => Math.abs(mb.balance) > 0.01);
+  };
+
   const transactions = calculateSettlement();
   const detailedTransactions = calculateDetailedSettlement();
   const aggregatedTransactions = aggregateDetailedTransactions(detailedTransactions);
+  const memberBalances = calculateMemberBalances();
   const sortedExpenses = [...expenses].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
@@ -515,6 +559,16 @@ export default function WarikanApp() {
                   最適化モード
                 </button>
                 <button
+                  onClick={() => setSettlementMode("diagram")}
+                  class={`flex-1 px-4 py-2 rounded-md font-medium transition-colors ${
+                    settlementMode === "diagram"
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  図解モード
+                </button>
+                <button
                   onClick={() => setSettlementMode("detailed")}
                   class={`flex-1 px-4 py-2 rounded-md font-medium transition-colors ${
                     settlementMode === "detailed"
@@ -522,7 +576,7 @@ export default function WarikanApp() {
                       : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                   }`}
                 >
-                  ガチガチ計算モード
+                  ガチガチ計算
                 </button>
               </div>
             )}
@@ -582,6 +636,126 @@ export default function WarikanApp() {
                     })}
                   </>
                 )
+              ) : settlementMode === "diagram" ? (
+                // 図解モード
+                <>
+                  <p class="text-sm text-indigo-600 mb-4">
+                    📊 収支状況と精算の流れを視覚化
+                  </p>
+                  
+                  {/* 収支状況の説明 */}
+                  <div class="bg-white p-4 rounded-lg shadow-sm mb-4">
+                    <h3 class="font-semibold text-gray-800 mb-3">💰 現在の収支状況</h3>
+                    <div class="space-y-2">
+                      {memberBalances.map((mb) => {
+                        const absBalance = Math.abs(mb.balance);
+                        const maxBalance = Math.max(...memberBalances.map(m => Math.abs(m.balance)));
+                        const barWidth = (absBalance / maxBalance) * 100;
+                        
+                        return (
+                          <div key={mb.id} class="space-y-1">
+                            <div class="flex justify-between items-center text-sm">
+                              <span class="font-medium text-gray-700">{mb.name}</span>
+                              <span class={`font-semibold ${mb.isPaying ? 'text-red-600' : 'text-green-600'}`}>
+                                {mb.isPaying ? '-' : '+'}{Math.round(absBalance).toLocaleString()}円
+                              </span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                              <div
+                                class={`h-full rounded-full ${
+                                  mb.isPaying ? 'bg-red-400' : 'bg-green-400'
+                                }`}
+                                style={{ width: `${barWidth}%` }}
+                              ></div>
+                            </div>
+                            <div class="text-xs text-gray-500">
+                              {mb.isPaying ? '支払う必要がある金額' : '受け取る金額'}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* 精算の流れ */}
+                  <div class="bg-white p-4 rounded-lg shadow-sm">
+                    <h3 class="font-semibold text-gray-800 mb-3">🔄 最適化された精算の流れ</h3>
+                    {transactions.length === 0 ? (
+                      <p class="font-semibold text-green-600">
+                        🎉 全員の精算は完了しています！
+                      </p>
+                    ) : (
+                      <div class="space-y-3">
+                        {transactions.map((tx, idx) => {
+                          const fromMember = members.find((m) => m.id === tx.from);
+                          const toMember = members.find((m) => m.id === tx.to);
+
+                          if (!fromMember || !toMember) return null;
+
+                          return (
+                            <div key={idx} class="relative">
+                              <div class="flex items-center gap-4 bg-indigo-50 p-3 rounded-lg">
+                                <div class="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center font-bold text-sm">
+                                  {idx + 1}
+                                </div>
+                                <div class="flex-1 flex items-center justify-between">
+                                  <div class="flex items-center gap-3">
+                                    <div class="text-center">
+                                      <div class="font-semibold text-gray-800">
+                                        {fromMember.name}
+                                      </div>
+                                      <div class="text-xs text-red-600">
+                                        支払う側
+                                      </div>
+                                    </div>
+                                    <div class="flex flex-col items-center">
+                                      <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-6 w-6 text-indigo-600"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                      >
+                                        <path
+                                          fill-rule="evenodd"
+                                          d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
+                                          clip-rule="evenodd"
+                                        />
+                                      </svg>
+                                      <div class="text-xs text-gray-500 mt-1">
+                                        送金
+                                      </div>
+                                    </div>
+                                    <div class="text-center">
+                                      <div class="font-semibold text-gray-800">
+                                        {toMember.name}
+                                      </div>
+                                      <div class="text-xs text-green-600">
+                                        受け取る側
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div class="text-right">
+                                    <div class="font-bold text-xl text-indigo-600">
+                                      {Math.round(tx.amount).toLocaleString()}円
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div class="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                          <div class="flex items-center gap-2 text-green-700">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                            </svg>
+                            <span class="font-semibold">この{transactions.length}回の取引で全員の収支がゼロになります！</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
                 // ガチガチ計算モード
                 <>
