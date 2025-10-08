@@ -1,0 +1,100 @@
+import { Head } from "fresh/runtime";
+import { define } from "../utils.ts";
+
+export default define.page(function Home() {
+  return (
+    <>
+      <Head>
+        <title>旅行割り勘精算アプリ</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+        <link rel="stylesheet" href="/style.css" />
+      </Head>
+      <body class="bg-gray-100 text-gray-800">
+        <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+          <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">旅行割り勘精算アプリ</h1>
+            <p class="text-gray-600 mt-2">メンバーと支払いを追加して、簡単に精算しましょう。</p>
+          </header>
+
+          <main id="app">
+            {/* メンバー管理セクション */}
+            <div class="card">
+              <h2 class="text-2xl font-semibold mb-4 text-gray-900">1. メンバーを追加</h2>
+              <div id="memberError" class="text-red-500 text-sm mb-2 -mt-2"></div>
+              <div class="flex flex-col sm:flex-row gap-4">
+                <input type="text" id="memberName" class="input-field flex-grow" placeholder="例: やまだ" />
+                <button onclick="addMember()" class="btn btn-primary">メンバーを追加</button>
+              </div>
+              <div id="membersList" class="mt-4 flex flex-wrap gap-3"></div>
+            </div>
+
+            {/* 支払い追加セクション */}
+            <div class="card">
+              <h2 class="text-2xl font-semibold mb-4 text-gray-900">2. 支払いを追加</h2>
+              <div id="expenseError" class="text-red-500 text-sm mb-4 -mt-2"></div>
+              <div id="addExpenseForm" class="space-y-4 hidden">
+                <div>
+                  <label for="expenseDescription" class="label">内容</label>
+                  <input type="text" id="expenseDescription" class="input-field" placeholder="例: 昼食代" />
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label for="expenseAmount" class="label">金額 (円)</label>
+                    <input type="number" id="expenseAmount" class="input-field" placeholder="例: 3000" />
+                  </div>
+                  <div>
+                    <label for="expenseDate" class="label">日付</label>
+                    <input type="date" id="expenseDate" class="input-field" />
+                  </div>
+                  <div>
+                    <label for="paidBy" class="label">支払った人</label>
+                    <select id="paidBy" class="input-field"></select>
+                  </div>
+                </div>
+                <div>
+                  <label class="label">誰の分？ (複数選択可)</label>
+                  <div id="paidForCheckboxes" class="mt-2 p-4 border border-gray-200 rounded-lg grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {/* チェックボックスがここに追加されます */}
+                  </div>
+                </div>
+                <div class="text-right">
+                  <button onclick="addExpense()" class="btn btn-primary">支払いを追加</button>
+                </div>
+              </div>
+              <div id="expenseWarning" class="text-center text-gray-500">
+                <p>まずメンバーを2人以上追加してください。</p>
+              </div>
+            </div>
+
+            {/* 支払い履歴と精算結果 */}
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* 支払い履歴 */}
+              <div class="card">
+                <h2 class="text-2xl font-semibold mb-4 text-gray-900">支払い履歴</h2>
+                <div id="expensesLog" class="space-y-3">
+                  <p class="text-gray-500">まだ支払いはありません。</p>
+                </div>
+              </div>
+
+              {/* 精算結果 */}
+              <div class="card bg-indigo-50">
+                <h2 class="text-2xl font-semibold mb-4 text-indigo-900">3. 精算結果</h2>
+                <div id="settlementResult" class="space-y-3">
+                  <p class="text-indigo-700">支払いが追加されると、ここに精算結果が表示されます。</p>
+                </div>
+              </div>
+            </div>
+          </main>
+
+          <footer class="text-center mt-12 text-gray-500">
+            <p>&copy; 2025 Mahiro. All rights reserved.</p>
+          </footer>
+        </div>
+
+        <script src="/script.js"></script>
+      </body>
+    </>
+  );
+});
