@@ -36,6 +36,13 @@ interface DetailedTransaction {
 
 type SettlementMode = "optimized" | "detailed";
 
+interface AggregatedTransaction {
+  from: number;
+  to: number;
+  totalAmount: number;
+  details: DetailedTransaction[];
+}
+
 export default function WarikanApp() {
   const [members, setMembers] = useState<Member[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -50,6 +57,7 @@ export default function WarikanApp() {
   const [paidForIds, setPaidForIds] = useState<number[]>([]);
   const [expenseError, setExpenseError] = useState("");
   const [settlementMode, setSettlementMode] = useState<SettlementMode>("optimized");
+  const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const today = new Date().toISOString().split("T")[0];
@@ -173,6 +181,42 @@ export default function WarikanApp() {
     );
   };
 
+  const aggregateDetailedTransactions = (detailedTransactions: DetailedTransaction[]): AggregatedTransaction[] => {
+    const aggregated = new Map<string, AggregatedTransaction>();
+
+    detailedTransactions.forEach((dtx) => {
+      const key = `${dtx.from}-${dtx.to}`;
+      
+      if (aggregated.has(key)) {
+        const existing = aggregated.get(key)!;
+        existing.totalAmount += dtx.amount;
+        existing.details.push(dtx);
+      } else {
+        aggregated.set(key, {
+          from: dtx.from,
+          to: dtx.to,
+          totalAmount: dtx.amount,
+          details: [dtx],
+        });
+      }
+    });
+
+    return Array.from(aggregated.values());
+  };
+
+  const toggleTransactionDetails = (fromId: number, toId: number) => {
+    const key = `${fromId}-${toId}`;
+    const newExpanded = new Set(expandedTransactions);
+    
+    if (newExpanded.has(key)) {
+      newExpanded.delete(key);
+    } else {
+      newExpanded.add(key);
+    }
+    
+    setExpandedTransactions(newExpanded);
+  };
+
   const calculateSettlement = (): Transaction[] => {
     if (expenses.length === 0 || members.length < 2) {
       return [];
@@ -237,6 +281,7 @@ export default function WarikanApp() {
 
   const transactions = calculateSettlement();
   const detailedTransactions = calculateDetailedSettlement();
+  const aggregatedTransactions = aggregateDetailedTransactions(detailedTransactions);
   const sortedExpenses = [...expenses].sort(
     (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
   );
@@ -541,29 +586,28 @@ export default function WarikanApp() {
                 // ガチガチ計算モード
                 <>
                   <p class="text-sm text-indigo-600 mb-3">
-                    📋 各支払いごとの都度払い精算
+                    📋 各支払いごとの都度払い精算（クリックで詳細表示）
                   </p>
-                  {detailedTransactions.length === 0 ? (
+                  {aggregatedTransactions.length === 0 ? (
                     <p class="font-semibold text-green-600">
                       🎉 全員の精算は完了しています！
                     </p>
                   ) : (
-                    <div class="space-y-4">
-                      {detailedTransactions.map((dtx, idx) => {
-                        const fromMember = members.find((m) => m.id === dtx.from);
-                        const toMember = members.find((m) => m.id === dtx.to);
+                    <div class="space-y-3">
+                      {aggregatedTransactions.map((aggTx) => {
+                        const fromMember = members.find((m) => m.id === aggTx.from);
+                        const toMember = members.find((m) => m.id === aggTx.to);
+                        const key = `${aggTx.from}-${aggTx.to}`;
+                        const isExpanded = expandedTransactions.has(key);
 
                         if (!fromMember || !toMember) return null;
 
                         return (
-                          <div
-                            key={idx}
-                            class="bg-white p-3 rounded-lg shadow-sm"
-                          >
-                            <div class="text-xs text-gray-500 mb-1">
-                              {dtx.expenseDate} - {dtx.expenseDescription}
-                            </div>
-                            <div class="flex items-center justify-between">
+                          <div key={key} class="bg-white rounded-lg shadow-sm overflow-hidden">
+                            <button
+                              onClick={() => toggleTransactionDetails(aggTx.from, aggTx.to)}
+                              class="w-full p-3 flex items-center justify-between hover:bg-gray-50 transition-colors"
+                            >
                               <div class="flex items-center gap-3">
                                 <span class="font-semibold text-gray-700">
                                   {fromMember.name}
@@ -584,10 +628,52 @@ export default function WarikanApp() {
                                   {toMember.name}
                                 </span>
                               </div>
-                              <div class="font-bold text-lg text-indigo-600">
-                                {Math.round(dtx.amount).toLocaleString()}円
+                              <div class="flex items-center gap-2">
+                                <div class="font-bold text-lg text-indigo-600">
+                                  {Math.round(aggTx.totalAmount).toLocaleString()}円
+                                </div>
+                                <svg
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  class={`h-5 w-5 text-gray-400 transition-transform ${
+                                    isExpanded ? "rotate-180" : ""
+                                  }`}
+                                  viewBox="0 0 20 20"
+                                  fill="currentColor"
+                                >
+                                  <path
+                                    fill-rule="evenodd"
+                                    d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+                                    clip-rule="evenodd"
+                                  />
+                                </svg>
                               </div>
-                            </div>
+                            </button>
+                            
+                            {isExpanded && (
+                              <div class="border-t border-gray-200 bg-gray-50 p-3">
+                                <div class="text-xs font-semibold text-gray-500 mb-2">内訳:</div>
+                                <div class="space-y-2">
+                                  {aggTx.details.map((detail, idx) => (
+                                    <div
+                                      key={idx}
+                                      class="flex justify-between items-start text-sm bg-white p-2 rounded"
+                                    >
+                                      <div>
+                                        <div class="font-medium text-gray-700">
+                                          {detail.expenseDescription}
+                                        </div>
+                                        <div class="text-xs text-gray-500">
+                                          {detail.expenseDate}
+                                        </div>
+                                      </div>
+                                      <div class="font-semibold text-indigo-600">
+                                        {Math.round(detail.amount).toLocaleString()}円
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         );
                       })}
