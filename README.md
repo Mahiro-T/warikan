@@ -12,7 +12,20 @@
   - **ガチガチ計算モード**: 各支払いごとの詳細な精算
 - **データ保存**: PostgreSQLデータベースに保存してUUIDで共有可能
 
-## セットアップ
+## 🚀 クイックスタート（Docker Compose）
+
+**最も簡単な方法！** Docker Composeで一発起動：
+
+```bash
+# すべて起動（PostgreSQL + アプリ）
+docker-compose up
+
+# ブラウザで http://localhost:8000 にアクセス
+```
+
+詳細は [DOCKER.md](DOCKER.md) を参照してください。
+
+## セットアップ（手動）
 
 ### 前提条件
 
@@ -44,6 +57,8 @@ DB_USER=postgres
 DB_PASSWORD=postgres
 DB_NAME=warikan
 ```
+
+詳細は [DATABASE_SETUP.md](DATABASE_SETUP.md) を参照してください。
 
 ### 開発サーバーの起動
 
